@@ -37,10 +37,17 @@ class ForegroundService : Service() {
         Log.d(TAG, "onStartCommand triggered")
         
         val settings = SettingsRepository.loadSettings(this)
-        val statusText = if (settings.isEnabled) {
-            "Reminder is scheduled every ${settings.intervalValue} ${settings.intervalUnit.lowercase()}."
+        val parts = mutableListOf<String>()
+        if (settings.isEnabled) {
+            parts.add("রিমাইন্ডার সচল (${settings.intervalValue} ${settings.intervalUnit.lowercase()})")
+        }
+        if (settings.isSalamEnabled) {
+            parts.add("ঘণ্টায় সালাম সচল")
+        }
+        val statusText = if (parts.isNotEmpty()) {
+            parts.joinToString(" | ")
         } else {
-            "No active timers scheduled."
+            "কোনো সেবা সচল নেই"
         }
 
         val notification = NotificationHelper.buildServiceNotification(this, statusText)

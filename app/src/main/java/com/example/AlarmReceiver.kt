@@ -18,7 +18,8 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
-        Log.d(TAG, "Alarm triggered!")
+        val action = intent?.action ?: AlarmScheduler.ACTION_REMINDER
+        Log.d(TAG, "Alarm triggered! Action: $action")
 
         // 1. Acquire WakeLock to keep CPU running
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -29,37 +30,66 @@ class AlarmReceiver : BroadcastReceiver() {
         wakeLock.acquire(15 * 1000L) // Safe limit: 15 seconds
 
         val settings = SettingsRepository.loadSettings(context)
-        if (!settings.isEnabled) {
-            Log.d(TAG, "Alarm was triggered but settings is disabled. Skipping.")
-            return
-        }
 
-        // 2. Play Selected Sound
-        playSound(context, settings.selectedSound) {
-            if (settings.isSalamEnabled) {
-                Log.d(TAG, "Hourly Salam and Time Announcement is active.")
+        if (action == AlarmScheduler.ACTION_REMINDER) {
+            if (!settings.isEnabled) {
+                Log.d(TAG, "Reminder alarm triggered but settings is disabled. Skipping.")
+                return
+            }
+
+            // Play Selected Sound
+            playSound(context, settings.selectedSound) {
+                Log.d(TAG, "Reminder sound playback complete.")
+            }
+
+            // Vibrate device
+            vibrate(context)
+
+            // Show high-priority notification
+            val friendlyTime = "${settings.intervalValue} ${settings.intervalUnit.lowercase()}"
+            NotificationHelper.showAlarmNotification(
+                context,
+                "Hourly Reminder Alert!",
+                "Your interval of $friendlyTime has elapsed."
+            )
+
+            // Update Foreground Service
+            AlarmScheduler.updateServiceState(context)
+
+            // Schedule NEXT alarm
+            AlarmScheduler.scheduleNextAlarm(context)
+
+        } else if (action == AlarmScheduler.ACTION_HOURLY) {
+            if (!settings.isSalamEnabled) {
+                Log.d(TAG, "Hourly Salam alarm triggered but it is disabled. Skipping.")
+                return
+            }
+
+            // Play Selected Sound first, then speak TTS
+            playSound(context, settings.selectedSound) {
+                Log.d(TAG, "Hourly chime finished, speaking Bengali TTS time announcement.")
                 val speechText = BengaliTTSAnnouncer.getBengaliTimeSpeech()
                 val ttsAnnouncer = BengaliTTSAnnouncer(context)
                 ttsAnnouncer.speak(speechText)
             }
+
+            // Vibrate device
+            vibrate(context)
+
+            // Show high-priority notification
+            val announcementText = BengaliTTSAnnouncer.getBengaliTimeSpeech()
+            NotificationHelper.showAlarmNotification(
+                context,
+                "Hourly Time Announcement",
+                announcementText
+            )
+
+            // Update Foreground Service
+            AlarmScheduler.updateServiceState(context)
+
+            // Schedule NEXT hourly alarm
+            AlarmScheduler.scheduleNextHourlyAlarm(context)
         }
-
-        // 3. Vibrate device
-        vibrate(context)
-
-        // 4. Show high-priority notification
-        val friendlyTime = "${settings.intervalValue} ${settings.intervalUnit.lowercase()}"
-        NotificationHelper.showAlarmNotification(
-            context,
-            "Hourly Reminder Alert!",
-            "Your interval of $friendlyTime has elapsed."
-        )
-
-        // 5. Update Foreground Service status notification text
-        ForegroundService.startService(context)
-
-        // 6. Schedule NEXT alarm
-        AlarmScheduler.scheduleNextAlarm(context)
     }
 
     private fun playSound(context: Context, soundFileName: String, onComplete: () -> Unit) {

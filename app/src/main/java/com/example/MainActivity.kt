@@ -155,6 +155,15 @@ fun MainScreen(
         
         // Setup initial channels
         NotificationHelper.createNotificationChannels(context)
+
+        // Ensure active alarms and background service state are running
+        if (loaded.isEnabled) {
+            AlarmScheduler.scheduleNextAlarm(context)
+        }
+        if (loaded.isSalamEnabled) {
+            AlarmScheduler.scheduleNextHourlyAlarm(context)
+        }
+        AlarmScheduler.updateServiceState(context)
     }
 
     // Sound player helper for testing
@@ -712,7 +721,7 @@ fun MainScreen(
                         
                         // Stop Background Timers
                         AlarmScheduler.cancelAlarm(context)
-                        ForegroundService.stopService(context)
+                        AlarmScheduler.updateServiceState(context)
                         
                         Toast.makeText(context, "Hourly Reminder alerts stopped.", Toast.LENGTH_SHORT).show()
                     }
@@ -775,7 +784,7 @@ fun MainScreen(
 
                     // Start scheduler & service
                     AlarmScheduler.scheduleNextAlarm(context)
-                    ForegroundService.startService(context)
+                    AlarmScheduler.updateServiceState(context)
 
                     // Update UI display
                     nextTriggerTime = SettingsRepository.getNextTriggerTime(context)
@@ -1089,7 +1098,7 @@ fun MainScreen(
                             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                         )
                         Text(
-                            text = "রিমাইন্ডার বাজার পর স্বয়ংক্রিয়ভাবে আসসালামু আলাইকুম এবং বর্তমান সময় বলবে।",
+                            text = "প্রতি এক ঘণ্টা পর পর স্বয়ংক্রিয়ভাবে আসসালামু আলাইকুম এবং বর্তমান সময় বলবে।",
                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                         )
                     }
@@ -1099,6 +1108,12 @@ fun MainScreen(
                             isSalamEnabled = newValue
                             val currentSettings = SettingsRepository.loadSettings(context).copy(isSalamEnabled = newValue)
                             SettingsRepository.saveSettings(context, currentSettings)
+                            if (newValue) {
+                                AlarmScheduler.scheduleNextHourlyAlarm(context)
+                            } else {
+                                AlarmScheduler.cancelHourlyAlarm(context)
+                            }
+                            AlarmScheduler.updateServiceState(context)
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color(0xFF381E72),

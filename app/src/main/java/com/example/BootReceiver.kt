@@ -14,16 +14,23 @@ class BootReceiver : BroadcastReceiver() {
         if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
             Log.d(TAG, "Device boot completed detected.")
             val settings = SettingsRepository.loadSettings(context)
+            var hasScheduledAnything = false
+
             if (settings.isEnabled && settings.restartOnBoot) {
-                Log.d(TAG, "Hourly Reminder was enabled. Rescheduling alarm and restarting ForegroundService.")
-                
-                // Reschedule alarm
+                Log.d(TAG, "Hourly Reminder was enabled. Rescheduling reminder alarm.")
                 AlarmScheduler.scheduleNextAlarm(context)
-                
-                // Start active state service
+                hasScheduledAnything = true
+            }
+
+            if (settings.isSalamEnabled && settings.restartOnBoot) {
+                Log.d(TAG, "Hourly Salam was enabled. Rescheduling hourly alarm.")
+                AlarmScheduler.scheduleNextHourlyAlarm(context)
+                hasScheduledAnything = true
+            }
+
+            if (hasScheduledAnything) {
+                Log.d(TAG, "Starting ForegroundService after boot reschedule.")
                 ForegroundService.startService(context)
-            } else {
-                Log.d(TAG, "Hourly Reminder was not enabled or auto-restart is disabled. Skipping reschedule.")
             }
         }
     }
