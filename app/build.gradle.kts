@@ -44,6 +44,22 @@ android {
         if (base64File.exists()) {
           val decodedBytes = Base64.getDecoder().decode(base64File.readText().trim())
           keystoreFile.writeBytes(decodedBytes)
+        } else {
+          try {
+            ProcessBuilder(
+              "keytool", "-genkey", "-v",
+              "-keystore", keystoreFile.absolutePath,
+              "-storepass", "android",
+              "-alias", "androiddebugkey",
+              "-keypass", "android",
+              "-keyalg", "RSA",
+              "-keysize", "2048",
+              "-validity", "10000",
+              "-dname", "CN=Android Debug,O=Android,C=US"
+            ).start().waitFor()
+          } catch (e: Exception) {
+            e.printStackTrace()
+          }
         }
       }
       storeFile = keystoreFile
