@@ -36,13 +36,11 @@ class AlarmReceiver : BroadcastReceiver() {
             return
         }
 
-        // Play Selected Sound first, then speak TTS
-        playSound(context, settings.selectedSound) {
-            Log.d(TAG, "Hourly chime finished, speaking Bengali TTS time announcement.")
-            val speechText = BengaliTTSAnnouncer.getBengaliTimeSpeech()
-            val ttsAnnouncer = BengaliTTSAnnouncer(context)
-            ttsAnnouncer.speak(speechText)
-        }
+        // Speak Bengali TTS time announcement directly
+        Log.d(TAG, "Speaking Bengali TTS time announcement.")
+        val speechText = BengaliTTSAnnouncer.getBengaliTimeSpeech()
+        val ttsAnnouncer = BengaliTTSAnnouncer(context)
+        ttsAnnouncer.speak(speechText)
 
         // Vibrate device
         vibrate(context)
