@@ -17,6 +17,13 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+      
+    - name: Debug Repository
+      run: |
+        pwd
+        ls -la
+        ls -la gradle/wrapper
+        ./gradlew --version
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
