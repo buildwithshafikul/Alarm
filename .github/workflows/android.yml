@@ -24,6 +24,14 @@ jobs:
         ls -la
         ls -la gradle/wrapper
         ./gradlew --version
+        
+    - name: Make Gradle executable
+      run: |
+        chmod +x ./gradlew
+        ls -l ./gradlew
+
+    - name: Verify Gradle
+      run: ./gradlew --version
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
