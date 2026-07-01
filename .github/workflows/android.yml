@@ -23,14 +23,15 @@ jobs:
         chmod +x ./gradlew
         ls -l ./gradlew
 
-    - name: Verify Gradle
-      run: ./gradlew --version
-      
     - name: Check wrapper JAR
       run: |
         file gradle/wrapper/gradle-wrapper.jar
         sha256sum gradle/wrapper/gradle-wrapper.jar
         unzip -t gradle/wrapper/gradle-wrapper.jar
+        
+    - name: Verify Gradle
+      run: ./gradlew --version
+      
      
     - name: Debug Repository
       run: |
