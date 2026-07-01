@@ -59,7 +59,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Hourly-Reminder-Alarm-Release-APK
-        path: app/build/outputs/apk/release/app-release-unsigned.apk
+        path: app/build/outputs/apk/release/*.apk
 
     # Create GitHub Release automatically on push to main branch
     - name: Create Automatic Tag & Release
@@ -76,6 +76,6 @@ jobs:
           - Secure system permissions self-diagnosis panel.
         draft: false
         prerelease: false
-        files: app/build/outputs/apk/release/app-release-unsigned.apk
+        files: app/build/outputs/apk/release/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
