@@ -10,99 +10,9 @@ import android.util.Log
 object AlarmScheduler {
     private const val TAG = "AlarmScheduler"
     
-    const val ACTION_REMINDER = "com.example.ACTION_REMINDER"
     const val ACTION_HOURLY = "com.example.ACTION_HOURLY"
     
-    private const val ALARM_REQUEST_CODE = 999
     private const val ALARM_REQUEST_CODE_HOURLY = 1000
-
-    fun scheduleNextAlarm(context: Context) {
-        val settings = SettingsRepository.loadSettings(context)
-        if (!settings.isEnabled) {
-            cancelAlarm(context)
-            return
-        }
-
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intervalMs = settings.getIntervalInMillis()
-        val triggerTimeMs = System.currentTimeMillis() + intervalMs
-
-        // Save next scheduled trigger time for UI display
-        SettingsRepository.saveNextTriggerTime(context, triggerTimeMs)
-
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            action = ACTION_REMINDER
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            ALARM_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (alarmManager.canScheduleExactAlarms()) {
-                        alarmManager.setExactAndAllowWhileIdle(
-                            AlarmManager.RTC_WAKEUP,
-                            triggerTimeMs,
-                            pendingIntent
-                        )
-                        Log.d(TAG, "Scheduled exact alarm at $triggerTimeMs")
-                    } else {
-                        alarmManager.setAndAllowWhileIdle(
-                            AlarmManager.RTC_WAKEUP,
-                            triggerTimeMs,
-                            pendingIntent
-                        )
-                        Log.d(TAG, "Scheduled inexact alarm (no permission) at $triggerTimeMs")
-                    }
-                } else {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerTimeMs,
-                        pendingIntent
-                    )
-                    Log.d(TAG, "Scheduled exact alarm at $triggerTimeMs")
-                }
-            } else {
-                alarmManager.set(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerTimeMs,
-                    pendingIntent
-                )
-                Log.d(TAG, "Scheduled standard alarm at $triggerTimeMs")
-            }
-        } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException scheduling exact alarm, falling back to inexact", e)
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerTimeMs,
-                pendingIntent
-            )
-        }
-    }
-
-    fun cancelAlarm(context: Context) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            action = ACTION_REMINDER
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            ALARM_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        if (pendingIntent != null) {
-            alarmManager.cancel(pendingIntent)
-            pendingIntent.cancel()
-        }
-        SettingsRepository.saveNextTriggerTime(context, 0L)
-        Log.d(TAG, "Cancelled alarm")
-    }
 
     fun scheduleNextHourlyAlarm(context: Context) {
         val settings = SettingsRepository.loadSettings(context)
@@ -121,6 +31,9 @@ object AlarmScheduler {
             set(java.util.Calendar.MILLISECOND, 0)
         }
         val triggerTimeMs = calendar.timeInMillis
+
+        // Save next scheduled trigger time for UI display
+        SettingsRepository.saveNextTriggerTime(context, triggerTimeMs)
 
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = ACTION_HOURLY
@@ -192,12 +105,13 @@ object AlarmScheduler {
             alarmManager.cancel(pendingIntent)
             pendingIntent.cancel()
         }
+        SettingsRepository.saveNextTriggerTime(context, 0L)
         Log.d(TAG, "Cancelled hourly alarm")
     }
 
     fun updateServiceState(context: Context) {
         val settings = SettingsRepository.loadSettings(context)
-        if (settings.isEnabled || settings.isSalamEnabled) {
+        if (settings.isSalamEnabled) {
             ForegroundService.startService(context)
         } else {
             ForegroundService.stopService(context)

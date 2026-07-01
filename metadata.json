@@ -1,6 +1,6 @@
 {
-  "name": "Hourly Reminder Alarm",
-  "description": "A highly reliable periodic reminder alarm that alerts you at custom minute or hour intervals with custom sound, vibration, and background services.",
+  "name": "Hourly Salam & Time",
+  "description": "An offline-first Android application that announces the time in Bengali preceded by an Islamic Salam greeting at the top of every hour, supported by a persistent background service.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

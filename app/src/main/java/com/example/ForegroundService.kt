@@ -37,15 +37,8 @@ class ForegroundService : Service() {
         Log.d(TAG, "onStartCommand triggered")
         
         val settings = SettingsRepository.loadSettings(this)
-        val parts = mutableListOf<String>()
-        if (settings.isEnabled) {
-            parts.add("রিমাইন্ডার সচল (${settings.intervalValue} ${settings.intervalUnit.lowercase()})")
-        }
-        if (settings.isSalamEnabled) {
-            parts.add("ঘণ্টায় সালাম সচল")
-        }
-        val statusText = if (parts.isNotEmpty()) {
-            parts.joinToString(" | ")
+        val statusText = if (settings.isSalamEnabled) {
+            "ঘণ্টায় সালাম ও সময় ঘোষণা সচল রয়েছে"
         } else {
             "কোনো সেবা সচল নেই"
         }

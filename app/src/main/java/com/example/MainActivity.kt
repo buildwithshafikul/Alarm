@@ -113,9 +113,6 @@ fun MainScreen(
     val scrollState = rememberScrollState()
 
     // Loaded settings
-    var intervalInput by remember { mutableStateOf("15") }
-    var selectedUnit by remember { mutableStateOf("Minutes") } // "Minutes" or "Hours"
-    var isEnabled by remember { mutableStateOf(false) }
     var selectedSound by remember { mutableStateOf("chime.mp3") }
     var restartOnBoot by remember { mutableStateOf(true) }
     var isSalamEnabled by remember { mutableStateOf(false) }
@@ -145,9 +142,6 @@ fun MainScreen(
     // Sync state with SharedPreferences
     LaunchedEffect(Unit) {
         val loaded = SettingsRepository.loadSettings(context)
-        intervalInput = loaded.intervalValue.toString()
-        selectedUnit = loaded.intervalUnit
-        isEnabled = loaded.isEnabled
         selectedSound = loaded.selectedSound
         restartOnBoot = loaded.restartOnBoot
         isSalamEnabled = loaded.isSalamEnabled
@@ -157,9 +151,6 @@ fun MainScreen(
         NotificationHelper.createNotificationChannels(context)
 
         // Ensure active alarms and background service state are running
-        if (loaded.isEnabled) {
-            AlarmScheduler.scheduleNextAlarm(context)
-        }
         if (loaded.isSalamEnabled) {
             AlarmScheduler.scheduleNextHourlyAlarm(context)
         }
@@ -247,12 +238,12 @@ fun MainScreen(
     }
 
     // Format current next trigger time
-    val nextTriggerStr = remember(nextTriggerTime, isEnabled) {
-        if (!isEnabled || nextTriggerTime == 0L) {
-            "No Active Timer Scheduled"
+    val nextTriggerStr = remember(nextTriggerTime, isSalamEnabled) {
+        if (!isSalamEnabled || nextTriggerTime == 0L) {
+            "ঘণ্টাভিত্তিক সালাম ও সময় ঘোষণা বন্ধ আছে"
         } else {
-            val sdf = SimpleDateFormat("hh:mm:ss a", Locale.getDefault())
-            "Next Trigger: " + sdf.format(Date(nextTriggerTime))
+            val sdf = SimpleDateFormat("hh:00 a", Locale.getDefault())
+            "পরবর্তী ঘোষণা: " + sdf.format(Date(nextTriggerTime))
         }
     }
 
@@ -298,7 +289,7 @@ fun MainScreen(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "Hourly Reminder",
+                    text = "সালাম ও সময় ঘোষণা",
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
@@ -307,7 +298,7 @@ fun MainScreen(
                     modifier = Modifier.testTag("app_title")
                 )
                 Text(
-                    text = "Never miss a beat in your busy day",
+                    text = "প্রতি ঘণ্টায় চমৎকার এলার্ম টোন এবং সালাম সহ সময় ঘোষণা",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = Color.White.copy(alpha = 0.8f)
                     )
@@ -319,10 +310,10 @@ fun MainScreen(
 
         // Timer Status Panel (Styled as Elegant Dark Active/Inactive hero)
         val statusBg by animateColorAsState(
-            targetValue = if (isEnabled) MaterialTheme.colorScheme.primaryContainer else cardBackground,
+            targetValue = if (isSalamEnabled) MaterialTheme.colorScheme.primaryContainer else cardBackground,
             label = "status_color"
         )
-        val statusTextIconColor = if (isEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+        val statusTextIconColor = if (isSalamEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
 
         Card(
             modifier = Modifier
@@ -330,7 +321,7 @@ fun MainScreen(
                 .padding(horizontal = 16.dp),
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = statusBg),
-            border = if (!isEnabled) BorderStroke(1.dp, cardBorderColor) else null
+            border = if (!isSalamEnabled) BorderStroke(1.dp, cardBorderColor) else null
         ) {
             Row(
                 modifier = Modifier
@@ -346,7 +337,7 @@ fun MainScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isEnabled) Icons.Default.AlarmOn else Icons.Default.AlarmOff,
+                        imageVector = if (isSalamEnabled) Icons.Default.AlarmOn else Icons.Default.AlarmOff,
                         contentDescription = "Alarm status",
                         tint = statusTextIconColor,
                         modifier = Modifier.size(28.dp)
@@ -355,7 +346,7 @@ fun MainScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1.0f)) {
                     Text(
-                        text = if (isEnabled) "Active Monitoring" else "Reminder Timer Stopped",
+                        text = if (isSalamEnabled) "সার্ভিস সক্রিয় রয়েছে (Running)" else "সার্ভিস বন্ধ রয়েছে (Stopped)",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = statusTextIconColor
@@ -374,7 +365,7 @@ fun MainScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Timer Config Section
+        // Master Switch Card for Service Enabling/Disabling
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -383,199 +374,49 @@ fun MainScreen(
             colors = CardDefaults.cardColors(containerColor = cardBackground),
             border = BorderStroke(1.dp, cardBorderColor)
         ) {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "Configure Reminder",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Interval Input
-                    OutlinedTextField(
-                        value = intervalInput,
-                        onValueChange = { newValue ->
-                            if (newValue.all { it.isDigit() }) {
-                                intervalInput = newValue
-                            }
-                        },
-                        label = { Text("Interval") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier
-                            .weight(1.0f)
-                            .testTag("interval_input"),
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.Schedule, contentDescription = "Schedule")
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedLabelColor = MaterialTheme.colorScheme.primary,
-                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
-                            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        shape = RoundedCornerShape(16.dp)
+                Column(modifier = Modifier.weight(0.8f)) {
+                    Text(
+                        text = "সার্ভিস সচল করুন (Enable Service)",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    // Unit selector (Minutes / Hours)
-                    Column(modifier = Modifier.weight(1.0f)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.surface)
-                                .border(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.outline,
-                                    shape = RoundedCornerShape(16.dp)
-                                ),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-                                    .background(if (selectedUnit == "Minutes") MaterialTheme.colorScheme.primary else Color.Transparent)
-                                    .clickable { selectedUnit = "Minutes" },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "MIN",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (selectedUnit == "Minutes") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .fillMaxHeight()
-                                    .background(MaterialTheme.colorScheme.outline)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
-                                    .background(if (selectedUnit == "Hours") MaterialTheme.colorScheme.primary else Color.Transparent)
-                                    .clickable { selectedUnit = "Hours" },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "HRS",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (selectedUnit == "Hours") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                )
-                            }
+                    Text(
+                        text = "সক্রিয় রাখলে অ্যাপটি অলটাইম ব্যাকগ্রাউন্ডে সচল থাকবে এবং প্রতি এক ঘণ্টা পর পর সালাম ও সময় ঘোষণা করবে।",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                }
+                Switch(
+                    checked = isSalamEnabled,
+                    onCheckedChange = { newValue ->
+                        isSalamEnabled = newValue
+                        val currentSettings = SettingsRepository.loadSettings(context).copy(isSalamEnabled = newValue)
+                        SettingsRepository.saveSettings(context, currentSettings)
+                        if (newValue) {
+                            AlarmScheduler.scheduleNextHourlyAlarm(context)
+                        } else {
+                            AlarmScheduler.cancelHourlyAlarm(context)
                         }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Quick Preset values
-                Text(
-                    text = "Quick Presets",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    modifier = Modifier.padding(bottom = 8.dp)
+                        AlarmScheduler.updateServiceState(context)
+                        nextTriggerTime = SettingsRepository.getNextTriggerTime(context)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                        uncheckedThumbColor = Color(0xFFCAC4D0),
+                        uncheckedTrackColor = Color(0xFF49454F)
+                    ),
+                    modifier = Modifier.testTag("salam_announcement_switch")
                 )
-
-                val presets = listOf(
-                    (5 to "Minutes"), (10 to "Minutes"), (15 to "Minutes"),
-                    (30 to "Minutes"), (45 to "Minutes"), (1 to "Hours"),
-                    (2 to "Hours"), (3 to "Hours")
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val firstFour = presets.take(4)
-                    firstFour.forEach { (value, unit) ->
-                        val isSelected = intervalInput == value.toString() && selectedUnit == unit
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                intervalInput = value.toString()
-                                selectedUnit = unit
-                            },
-                            label = { Text("$value m") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF4A4458),
-                                selectedLabelColor = Color(0xFFD0BCFF),
-                                containerColor = Color.Transparent,
-                                labelColor = Color(0xFFE6E1E5)
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                selectedBorderColor = Color(0xFFD0BCFF),
-                                selectedBorderWidth = 1.dp,
-                                borderColor = Color(0xFF49454F),
-                                borderWidth = 1.dp,
-                                enabled = true,
-                                selected = isSelected
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val lastFour = presets.drop(4)
-                    lastFour.forEach { (value, unit) ->
-                        val isSelected = intervalInput == value.toString() && selectedUnit == unit
-                        val label = if (unit == "Hours") "$value hr" else "$value m"
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                intervalInput = value.toString()
-                                selectedUnit = unit
-                            },
-                            label = { Text(label) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF4A4458),
-                                selectedLabelColor = Color(0xFFD0BCFF),
-                                containerColor = Color.Transparent,
-                                labelColor = Color(0xFFE6E1E5)
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                selectedBorderColor = Color(0xFFD0BCFF),
-                                selectedBorderWidth = 1.dp,
-                                borderColor = Color(0xFF49454F),
-                                borderWidth = 1.dp,
-                                enabled = true,
-                                selected = isSelected
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
-                }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Sound Selection & Playback Testing Card (Polished Card design for maximum compatibility)
         Card(
@@ -592,7 +433,7 @@ fun MainScreen(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "Notification Sound Settings",
+                    text = "এলার্ম টোন নির্বাচন করুন",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
@@ -624,7 +465,7 @@ fun MainScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        text = "Alert Tone",
+                                        text = "বর্তমান টোন",
                                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                     Text(
@@ -687,123 +528,8 @@ fun MainScreen(
                         contentDescription = "Audio feedback"
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = if (isTestingSound) "Stop Sound Test" else "Test Selected Sound Tone")
+                    Text(text = if (isTestingSound) "টোন পরীক্ষা বন্ধ করুন" else "টোন পরীক্ষা করুন")
                 }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Large Control Panel Buttons: Start and Stop Reminders
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // STOP Button
-            Button(
-                onClick = {
-                    if (isEnabled) {
-                        isEnabled = false
-                        nextTriggerTime = 0L
-                        
-                        // Save State
-                        val currentSettings = AlarmSettings(
-                            intervalValue = intervalInput.toIntOrNull() ?: 15,
-                            intervalUnit = selectedUnit,
-                            isEnabled = false,
-                            selectedSound = selectedSound,
-                            restartOnBoot = restartOnBoot,
-                            isSalamEnabled = isSalamEnabled
-                        )
-                        SettingsRepository.saveSettings(context, currentSettings)
-                        
-                        // Stop Background Timers
-                        AlarmScheduler.cancelAlarm(context)
-                        AlarmScheduler.updateServiceState(context)
-                        
-                        Toast.makeText(context, "Hourly Reminder alerts stopped.", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                enabled = isEnabled,
-                modifier = Modifier
-                    .weight(1.0f)
-                    .height(56.dp)
-                    .testTag("stop_button"),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF49454F),
-                    contentColor = Color(0xFFD0BCFF),
-                    disabledContainerColor = Color(0xFF49454F).copy(alpha = 0.4f),
-                    disabledContentColor = Color(0xFFD0BCFF).copy(alpha = 0.4f)
-                ),
-                shape = CircleShape
-            ) {
-                Icon(imageVector = Icons.Default.Stop, contentDescription = "Stop alarm")
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Stop Alerts")
-            }
-
-            // START Button
-            Button(
-                onClick = {
-                    val parsedVal = intervalInput.toIntOrNull()
-                    if (parsedVal == null || parsedVal <= 0) {
-                        Toast.makeText(context, "Please enter a valid alarm interval.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    // Check notification permission if Tiramisu+
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        val hasNotificationPerm = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.POST_NOTIFICATIONS
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (!hasNotificationPerm) {
-                            onRequestNotificationPermission()
-                            return@Button
-                        }
-                    }
-
-                    // Check schedule exact alarm permissions
-                    if (!AlarmScheduler.hasExactAlarmPermission(context)) {
-                        Toast.makeText(context, "Please grant Schedule Exact Alarm permission in settings for exact timings.", Toast.LENGTH_LONG).show()
-                    }
-
-                    isEnabled = true
-
-                    // Save State
-                    val currentSettings = AlarmSettings(
-                        intervalValue = parsedVal,
-                        intervalUnit = selectedUnit,
-                        isEnabled = true,
-                        selectedSound = selectedSound,
-                        restartOnBoot = restartOnBoot,
-                        isSalamEnabled = isSalamEnabled
-                    )
-                    SettingsRepository.saveSettings(context, currentSettings)
-
-                    // Start scheduler & service
-                    AlarmScheduler.scheduleNextAlarm(context)
-                    AlarmScheduler.updateServiceState(context)
-
-                    // Update UI display
-                    nextTriggerTime = SettingsRepository.getNextTriggerTime(context)
-
-                    Toast.makeText(context, "Periodic Reminder started successfully!", Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier
-                    .weight(1.0f)
-                    .height(56.dp)
-                    .testTag("start_button"),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                shape = CircleShape
-            ) {
-                Icon(imageVector = Icons.Default.PlayArrow, contentDescription = "Start alarm")
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Start Alerts")
             }
         }
 
@@ -1079,49 +805,6 @@ fun MainScreen(
                             uncheckedTrackColor = Color(0xFF49454F)
                         ),
                         modifier = Modifier.testTag("boot_restart_switch")
-                    )
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-                // Toggle 2: Salam and Time Announcement
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(0.85f)) {
-                        Text(
-                            text = "সালাম এবং সময় ঘোষণা (Hourly Salam & Time)",
-                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
-                        )
-                        Text(
-                            text = "প্রতি এক ঘণ্টা পর পর স্বয়ংক্রিয়ভাবে আসসালামু আলাইকুম এবং বর্তমান সময় বলবে।",
-                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        )
-                    }
-                    Switch(
-                        checked = isSalamEnabled,
-                        onCheckedChange = { newValue ->
-                            isSalamEnabled = newValue
-                            val currentSettings = SettingsRepository.loadSettings(context).copy(isSalamEnabled = newValue)
-                            SettingsRepository.saveSettings(context, currentSettings)
-                            if (newValue) {
-                                AlarmScheduler.scheduleNextHourlyAlarm(context)
-                            } else {
-                                AlarmScheduler.cancelHourlyAlarm(context)
-                            }
-                            AlarmScheduler.updateServiceState(context)
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF381E72),
-                            checkedTrackColor = Color(0xFFD0BCFF),
-                            uncheckedThumbColor = Color(0xFFCAC4D0),
-                            uncheckedTrackColor = Color(0xFF49454F)
-                        ),
-                        modifier = Modifier.testTag("salam_announcement_switch")
                     )
                 }
 

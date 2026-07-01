@@ -16,12 +16,6 @@ class BootReceiver : BroadcastReceiver() {
             val settings = SettingsRepository.loadSettings(context)
             var hasScheduledAnything = false
 
-            if (settings.isEnabled && settings.restartOnBoot) {
-                Log.d(TAG, "Hourly Reminder was enabled. Rescheduling reminder alarm.")
-                AlarmScheduler.scheduleNextAlarm(context)
-                hasScheduledAnything = true
-            }
-
             if (settings.isSalamEnabled && settings.restartOnBoot) {
                 Log.d(TAG, "Hourly Salam was enabled. Rescheduling hourly alarm.")
                 AlarmScheduler.scheduleNextHourlyAlarm(context)
