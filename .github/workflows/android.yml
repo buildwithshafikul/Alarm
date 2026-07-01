@@ -30,6 +30,12 @@ jobs:
         mkdir -p gradle/wrapper
         curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v9.3.1/gradle/wrapper/gradle-wrapper.jar
 
+    - name: Restore Debug Keystore
+      run: |
+        if [ -f "debug.keystore.base64" ]; then
+          base64 --decode debug.keystore.base64 > debug.keystore || base64 -d debug.keystore.base64 > debug.keystore
+        fi
+
     - name: Grant Execute Permission for Gradle Wrapper
       run: chmod +x gradlew
       continue-on-error: true
