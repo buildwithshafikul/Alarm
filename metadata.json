@@ -1,0 +1,6 @@
+{
+  "name": "Hourly Reminder Alarm",
+  "description": "A highly reliable periodic reminder alarm that alerts you at custom minute or hour intervals with custom sound, vibration, and background services.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
