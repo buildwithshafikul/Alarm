@@ -7,8 +7,9 @@ data class AlarmSettings(
     val intervalValue: Int = 15,
     val intervalUnit: String = "Minutes", // "Minutes" or "Hours"
     val isEnabled: Boolean = false,
-    val selectedSound: String = "chime.mp3", // "bell.mp3", "chime.mp3", "beep.mp3", "zen.mp3"
-    val restartOnBoot: Boolean = true
+    val selectedSound: String = "chime.mp3", // "bell.mp3", "chime.mp3", "beep.mp3", "zen.mp3", "custom_voice.mp4"
+    val restartOnBoot: Boolean = true,
+    val isSalamEnabled: Boolean = false
 ) {
     fun getIntervalInMillis(): Long {
         val multiplier = if (intervalUnit == "Hours") 60 * 60 * 1000L else 60 * 1000L
@@ -24,6 +25,7 @@ object SettingsRepository {
     private const val KEY_SELECTED_SOUND = "selected_sound"
     private const val KEY_RESTART_ON_BOOT = "restart_on_boot"
     private const val KEY_NEXT_TRIGGER_TIME = "next_trigger_time"
+    private const val KEY_IS_SALAM_ENABLED = "is_salam_enabled"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -36,6 +38,7 @@ object SettingsRepository {
             putBoolean(KEY_IS_ENABLED, settings.isEnabled)
             putString(KEY_SELECTED_SOUND, settings.selectedSound)
             putBoolean(KEY_RESTART_ON_BOOT, settings.restartOnBoot)
+            putBoolean(KEY_IS_SALAM_ENABLED, settings.isSalamEnabled)
             apply()
         }
     }
@@ -47,7 +50,8 @@ object SettingsRepository {
             intervalUnit = prefs.getString(KEY_INTERVAL_UNIT, "Minutes") ?: "Minutes",
             isEnabled = prefs.getBoolean(KEY_IS_ENABLED, false),
             selectedSound = prefs.getString(KEY_SELECTED_SOUND, "chime.mp3") ?: "chime.mp3",
-            restartOnBoot = prefs.getBoolean(KEY_RESTART_ON_BOOT, true)
+            restartOnBoot = prefs.getBoolean(KEY_RESTART_ON_BOOT, true),
+            isSalamEnabled = prefs.getBoolean(KEY_IS_SALAM_ENABLED, false)
         )
     }
 

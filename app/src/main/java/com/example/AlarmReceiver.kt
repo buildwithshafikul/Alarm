@@ -35,7 +35,14 @@ class AlarmReceiver : BroadcastReceiver() {
         }
 
         // 2. Play Selected Sound
-        playSound(context, settings.selectedSound)
+        playSound(context, settings.selectedSound) {
+            if (settings.isSalamEnabled) {
+                Log.d(TAG, "Hourly Salam and Time Announcement is active.")
+                val speechText = BengaliTTSAnnouncer.getBengaliTimeSpeech()
+                val ttsAnnouncer = BengaliTTSAnnouncer(context)
+                ttsAnnouncer.speak(speechText)
+            }
+        }
 
         // 3. Vibrate device
         vibrate(context)
@@ -55,14 +62,22 @@ class AlarmReceiver : BroadcastReceiver() {
         AlarmScheduler.scheduleNextAlarm(context)
     }
 
-    private fun playSound(context: Context, soundFileName: String) {
+    private fun playSound(context: Context, soundFileName: String, onComplete: () -> Unit) {
         val mediaPlayer = MediaPlayer()
         try {
-            val assetManager = context.assets
-            // Attempt to open the custom sound asset
-            val afd = assetManager.openFd("audio/$soundFileName")
-            mediaPlayer.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-            afd.close()
+            if (soundFileName == "custom_voice.mp4") {
+                val file = java.io.File(context.filesDir, "custom_voice.mp4")
+                if (file.exists()) {
+                    mediaPlayer.setDataSource(file.absolutePath)
+                } else {
+                    throw java.io.FileNotFoundException("Custom voice file not found")
+                }
+            } else {
+                val assetManager = context.assets
+                val afd = assetManager.openFd("audio/$soundFileName")
+                mediaPlayer.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                afd.close()
+            }
             
             mediaPlayer.setAudioAttributes(
                 AudioAttributes.Builder()
@@ -78,9 +93,10 @@ class AlarmReceiver : BroadcastReceiver() {
             mediaPlayer.setOnCompletionListener {
                 Log.d(TAG, "Asset playback complete. Releasing MediaPlayer.")
                 it.release()
+                onComplete()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to play asset sound 'audio/$soundFileName', using default ringtone", e)
+            Log.e(TAG, "Failed to play sound '$soundFileName', using default ringtone", e)
             try {
                 // Release player if prepared
                 mediaPlayer.release()
@@ -97,9 +113,24 @@ class AlarmReceiver : BroadcastReceiver() {
                             .build()
                     }
                     it.play()
+                    
+                    // Stop ringtone after 4 seconds and then run TTS/complete
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            if (it.isPlaying) {
+                                it.stop()
+                            }
+                        } catch (ex: Exception) {
+                            Log.e(TAG, "Error stopping fallback ringtone", ex)
+                        }
+                        onComplete()
+                    }, 4000)
+                } ?: run {
+                    onComplete()
                 }
             } catch (ex: Exception) {
                 Log.e(TAG, "Failed playing system default ringtone", ex)
+                onComplete()
             }
         }
     }

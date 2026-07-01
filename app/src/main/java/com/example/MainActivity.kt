@@ -67,6 +67,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val requestRecordAudioPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Toast.makeText(this, "Microphone permission granted! You can now record your voice.", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "Microphone permission is required to record your voice.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -81,6 +91,9 @@ class MainActivity : ComponentActivity() {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
+                        },
+                        onRequestRecordPermission = {
+                            requestRecordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     )
                 }
@@ -93,7 +106,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
-    onRequestNotificationPermission: () -> Unit
+    onRequestNotificationPermission: () -> Unit,
+    onRequestRecordPermission: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -104,16 +118,29 @@ fun MainScreen(
     var isEnabled by remember { mutableStateOf(false) }
     var selectedSound by remember { mutableStateOf("chime.mp3") }
     var restartOnBoot by remember { mutableStateOf(true) }
+    var isSalamEnabled by remember { mutableStateOf(false) }
     var nextTriggerTime by remember { mutableStateOf(0L) }
+
+    // Custom voice recorder state
+    val audioRecorder = remember { AudioRecorder() }
+    var isRecording by remember { mutableStateOf(false) }
+    val recordFile = remember { java.io.File(context.filesDir, "custom_voice.mp4") }
+    var hasRecording by remember { mutableStateOf(recordFile.exists()) }
 
     // Dropdown list state
     var soundDropdownExpanded by remember { mutableStateOf(false) }
-    val availableSounds = listOf(
-        "bell.mp3" to "Digital Bell",
-        "chime.mp3" to "Calm Chime",
-        "beep.mp3" to "Breeze Alarm",
-        "zen.mp3" to "Zen Temple Chime"
-    )
+    val availableSounds = remember(hasRecording) {
+        val baseList = mutableListOf(
+            "bell.mp3" to "Digital Bell",
+            "chime.mp3" to "Calm Chime",
+            "beep.mp3" to "Breeze Alarm",
+            "zen.mp3" to "Zen Temple Chime"
+        )
+        if (hasRecording) {
+            baseList.add(0, "custom_voice.mp4" to "My Voice Recording (আমার কণ্ঠ)")
+        }
+        baseList
+    }
 
     // Sync state with SharedPreferences
     LaunchedEffect(Unit) {
@@ -123,6 +150,7 @@ fun MainScreen(
         isEnabled = loaded.isEnabled
         selectedSound = loaded.selectedSound
         restartOnBoot = loaded.restartOnBoot
+        isSalamEnabled = loaded.isSalamEnabled
         nextTriggerTime = SettingsRepository.getNextTriggerTime(context)
         
         // Setup initial channels
@@ -160,9 +188,20 @@ fun MainScreen(
         val player = MediaPlayer()
         mediaPlayer = player
         try {
-            val afd = context.assets.openFd("audio/$selectedSound")
-            player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-            afd.close()
+            if (selectedSound == "custom_voice.mp4") {
+                val file = java.io.File(context.filesDir, "custom_voice.mp4")
+                if (file.exists()) {
+                    player.setDataSource(file.absolutePath)
+                } else {
+                    Toast.makeText(context, "No custom voice recorded yet!", Toast.LENGTH_SHORT).show()
+                    isTestingSound = false
+                    return
+                }
+            } else {
+                val afd = context.assets.openFd("audio/$selectedSound")
+                player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                afd.close()
+            }
             player.setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
@@ -604,6 +643,8 @@ fun MainScreen(
                                 onClick = {
                                     selectedSound = file
                                     soundDropdownExpanded = false
+                                    val currentSettings = SettingsRepository.loadSettings(context).copy(selectedSound = file)
+                                    SettingsRepository.saveSettings(context, currentSettings)
                                 },
                                 leadingIcon = {
                                     Icon(
@@ -664,7 +705,8 @@ fun MainScreen(
                             intervalUnit = selectedUnit,
                             isEnabled = false,
                             selectedSound = selectedSound,
-                            restartOnBoot = restartOnBoot
+                            restartOnBoot = restartOnBoot,
+                            isSalamEnabled = isSalamEnabled
                         )
                         SettingsRepository.saveSettings(context, currentSettings)
                         
@@ -726,7 +768,8 @@ fun MainScreen(
                         intervalUnit = selectedUnit,
                         isEnabled = true,
                         selectedSound = selectedSound,
-                        restartOnBoot = restartOnBoot
+                        restartOnBoot = restartOnBoot,
+                        isSalamEnabled = isSalamEnabled
                     )
                     SettingsRepository.saveSettings(context, currentSettings)
 
@@ -752,6 +795,211 @@ fun MainScreen(
                 Icon(imageVector = Icons.Default.PlayArrow, contentDescription = "Start alarm")
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Start Alerts")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Custom Voice Recorder Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBackground),
+            border = BorderStroke(1.dp, cardBorderColor)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = "Voice Recorder Icon",
+                        tint = colorPrimary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "নিজের কণ্ঠে রেকর্ড করুন (Voice Recorder)",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.weight(1.0f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "আপনি চাইলে নিজের কণ্ঠে যেকোনো রিমাইন্ডার রেকর্ড করে সেটিকে এলার্ম টোন হিসেবে ব্যবহার করতে পারেন।",
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Display current status
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Recording Status Badge
+                    val statusText = if (isRecording) "রেকর্ডিং হচ্ছে..." else if (hasRecording) "রেকর্ড পাওয়া গেছে" else "কোনো রেকর্ড নেই"
+                    val statusColor = if (isRecording) Color(0xFFE57373) else if (hasRecording) Color(0xFF81C784) else Color(0xFFCAC4D0)
+                    val statusBg = if (isRecording) Color(0xFF3C090A) else if (hasRecording) Color(0xFF0C2411) else Color(0xFF1C1B1F)
+
+                    Surface(
+                        color = statusBg,
+                        border = BorderStroke(1.dp, statusColor),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = statusColor),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // If recording exists, show delete action
+                    if (hasRecording && !isRecording) {
+                        IconButton(
+                            onClick = {
+                                if (recordFile.exists()) {
+                                    recordFile.delete()
+                                }
+                                hasRecording = false
+                                if (selectedSound == "custom_voice.mp4") {
+                                    selectedSound = "chime.mp3"
+                                    val currentSettings = SettingsRepository.loadSettings(context).copy(selectedSound = "chime.mp3")
+                                    SettingsRepository.saveSettings(context, currentSettings)
+                                }
+                                Toast.makeText(context, "রেকর্ড ফাইলটি মুছে ফেলা হয়েছে।", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete recording",
+                                tint = Color(0xFFE57373)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Record button
+                    val hasMicPermission = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+
+                    Button(
+                        onClick = {
+                            if (!hasMicPermission) {
+                                onRequestRecordPermission()
+                            } else {
+                                if (isRecording) {
+                                    // Stop recording
+                                    audioRecorder.stopRecording()
+                                    isRecording = false
+                                    hasRecording = recordFile.exists()
+                                    // Auto-select recording
+                                    if (hasRecording) {
+                                        selectedSound = "custom_voice.mp4"
+                                        val currentSettings = SettingsRepository.loadSettings(context).copy(selectedSound = "custom_voice.mp4")
+                                        SettingsRepository.saveSettings(context, currentSettings)
+                                        Toast.makeText(context, "কণ্ঠ রেকর্ড সফল হয়েছে এবং এলার্ম টোন হিসেবে সেট হয়েছে!", Toast.LENGTH_LONG).show()
+                                    }
+                                } else {
+                                    // Start recording
+                                    if (recordFile.exists()) {
+                                        recordFile.delete()
+                                    }
+                                    audioRecorder.startRecording(context, recordFile)
+                                    isRecording = true
+                                    hasRecording = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isRecording) Color(0xFFE57373) else MaterialTheme.colorScheme.secondary,
+                            contentColor = if (isRecording) Color(0xFF3C090A) else MaterialTheme.colorScheme.onSecondary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (isRecording) Icons.Default.StopCircle else Icons.Default.Mic,
+                            contentDescription = "Mic operation"
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isRecording) "রেকর্ডিং বন্ধ করুন" else "কণ্ঠ রেকর্ড করুন")
+                    }
+
+                    // Play button (only if recording exists and not currently recording)
+                    if (hasRecording && !isRecording) {
+                        var isPlayingCustomVoice by remember { mutableStateOf(false) }
+                        var customVoicePlayer: MediaPlayer? by remember { mutableStateOf(null) }
+
+                        DisposableEffect(Unit) {
+                            onDispose {
+                                customVoicePlayer?.release()
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                if (isPlayingCustomVoice) {
+                                    try {
+                                        customVoicePlayer?.stop()
+                                        customVoicePlayer?.release()
+                                        customVoicePlayer = null
+                                    } catch (e: Exception) {
+                                        Log.e("MainActivity", "Error stopping custom preview", e)
+                                    }
+                                    isPlayingCustomVoice = false
+                                } else {
+                                    val player = MediaPlayer()
+                                    customVoicePlayer = player
+                                    try {
+                                        player.setDataSource(recordFile.absolutePath)
+                                        player.prepare()
+                                        player.start()
+                                        isPlayingCustomVoice = true
+                                        player.setOnCompletionListener {
+                                            player.release()
+                                            customVoicePlayer = null
+                                            isPlayingCustomVoice = false
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("MainActivity", "Error playing custom preview", e)
+                                        Toast.makeText(context, "রেকর্ড ফাইলটি বাজানো যায়নি।", Toast.LENGTH_SHORT).show()
+                                        isPlayingCustomVoice = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPlayingCustomVoice) Color(0xFF81C784) else Color(0xFF49454F),
+                                contentColor = if (isPlayingCustomVoice) Color(0xFF0C2411) else Color(0xFFD0BCFF)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = if (isPlayingCustomVoice) Icons.Default.StopCircle else Icons.Default.PlayArrow,
+                                contentDescription = "Play operation"
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isPlayingCustomVoice) "বন্ধ করুন" else "শুনুন")
+                        }
+                    }
+                }
             }
         }
 
@@ -822,6 +1070,43 @@ fun MainScreen(
                             uncheckedTrackColor = Color(0xFF49454F)
                         ),
                         modifier = Modifier.testTag("boot_restart_switch")
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                // Toggle 2: Salam and Time Announcement
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(0.85f)) {
+                        Text(
+                            text = "সালাম এবং সময় ঘোষণা (Hourly Salam & Time)",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                        Text(
+                            text = "রিমাইন্ডার বাজার পর স্বয়ংক্রিয়ভাবে আসসালামু আলাইকুম এবং বর্তমান সময় বলবে।",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                    }
+                    Switch(
+                        checked = isSalamEnabled,
+                        onCheckedChange = { newValue ->
+                            isSalamEnabled = newValue
+                            val currentSettings = SettingsRepository.loadSettings(context).copy(isSalamEnabled = newValue)
+                            SettingsRepository.saveSettings(context, currentSettings)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFF381E72),
+                            checkedTrackColor = Color(0xFFD0BCFF),
+                            uncheckedThumbColor = Color(0xFFCAC4D0),
+                            uncheckedTrackColor = Color(0xFF49454F)
+                        ),
+                        modifier = Modifier.testTag("salam_announcement_switch")
                     )
                 }
 
