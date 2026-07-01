@@ -30,10 +30,15 @@ jobs:
         mkdir -p gradle/wrapper
         curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v9.3.1/gradle/wrapper/gradle-wrapper.jar
 
-    - name: Restore Debug Keystore
+    - name: Restore or Generate Debug Keystore
       run: |
         if [ -f "debug.keystore.base64" ]; then
-          base64 --decode debug.keystore.base64 > debug.keystore || base64 -d debug.keystore.base64 > debug.keystore
+          echo "Decoding debug.keystore.base64..."
+          tr -d '\r\n ' < debug.keystore.base64 | base64 --decode > debug.keystore || tr -d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore || true
+        fi
+        if [ ! -f "debug.keystore" ]; then
+          echo "debug.keystore not found, generating a new one..."
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
         fi
 
     - name: Grant Execute Permission for Gradle Wrapper
