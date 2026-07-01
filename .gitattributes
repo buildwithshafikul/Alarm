@@ -1,0 +1,15 @@
+# Treat all files as text and normalize line endings on commit unless specified otherwise
+* text=auto
+
+# Declare binary files that must not be modified by line ending normalization
+*.jar binary
+*.png binary
+*.webp binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+
+# Explicitly ensure bash scripts use LF line endings and batch scripts use CRLF
+gradlew text eol=lf
+gradlew.bat text eol=crlf
